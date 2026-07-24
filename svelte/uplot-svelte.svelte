@@ -34,6 +34,55 @@
         return state;
     };
 
+    // If the only difference between the previous and next options is the
+    // min/max of one or more scales, returns the changed scales so they can be
+    // applied via `setScale` (wrapped in `batch`) instead of re-creating the
+    // chart. Returns null when any other (structural) difference is present.
+    const scaleRangeUpdates = (prev, next) => {
+        const ignored = new Set(['width', 'height', 'scales']);
+        const prevKeys = Object.keys(prev).filter((k) => !ignored.has(k));
+        const nextKeys = Object.keys(next).filter((k) => !ignored.has(k));
+
+        if (prevKeys.length !== nextKeys.length) {
+            return null;
+        }
+        for (const k of prevKeys) {
+            if (!Object.is(prev[k], next[k])) {
+                return null;
+            }
+        }
+
+        const prevScaleMap = prev.scales || {};
+        const nextScaleMap = next.scales || {};
+        if (Object.keys(prevScaleMap).length !== Object.keys(nextScaleMap).length) {
+            return null;
+        }
+
+        const changes = [];
+        for (const key of Object.keys(nextScaleMap)) {
+            if (!(key in prevScaleMap)) {
+                return null;
+            }
+            const prevScale = prevScaleMap[key];
+            const nextScale = nextScaleMap[key];
+            for (const prop of Object.keys({ ...prevScale, ...nextScale })) {
+                if (prop === 'min' || prop === 'max') {
+                    continue;
+                }
+                if (!Object.is(prevScale[prop], nextScale[prop])) {
+                    return null;
+                }
+            }
+            if (!Object.is(prevScale.min, nextScale.min) || !Object.is(prevScale.max, nextScale.max)) {
+                if (typeof nextScale.min !== 'number' || typeof nextScale.max !== 'number') {
+                    return null;
+                }
+                changes.push({ key, min: nextScale.min, max: nextScale.max });
+            }
+        }
+        return changes;
+    };
+
     const destroy = () => {
         if (chart) {
             onDelete(chart);
@@ -65,16 +114,37 @@
 
     $: {
         if (options) {
-            const state = optionsUpdateState(prevOptions, options);
-            prevOptions = { ...options };
-            if (state === 'create') {
-                destroy();
-                create();
-            } else if (state === 'update' && chart) {
-                chart.setSize({
-                    width: options.width,
-                    height: options.height,
-                });
+            // When the only change is the min/max of one or more scales, apply
+            // it live with `setScale` rather than tearing down the chart.
+            const scaleChanges = chart ? scaleRangeUpdates(prevOptions, options) : null;
+            if (chart && scaleChanges) {
+                const sizeChanged =
+                    prevOptions.width !== options.width || prevOptions.height !== options.height;
+                prevOptions = { ...options };
+                if (sizeChanged) {
+                    chart.setSize({ width: options.width, height: options.height });
+                }
+                // Batch the scale updates so the chart redraws once, regardless
+                // of how many scales changed.
+                if (scaleChanges.length) {
+                    chart.batch(() => {
+                        for (const { key, min, max } of scaleChanges) {
+                            chart.setScale(key, { min, max });
+                        }
+                    });
+                }
+            } else {
+                const state = optionsUpdateState(prevOptions, options);
+                prevOptions = { ...options };
+                if (state === 'create') {
+                    destroy();
+                    create();
+                } else if (state === 'update' && chart) {
+                    chart.setSize({
+                        width: options.width,
+                        height: options.height,
+                    });
+                }
             }
         }
     }

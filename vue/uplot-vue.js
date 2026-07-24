@@ -2,7 +2,7 @@ import Vue, { defineComponent, createVNode } from 'vue';
 
 import uPlot from 'uplot';
 
-import { optionsUpdateState, dataMatch } from 'uplot-wrappers-common';
+import { optionsUpdateState, dataMatch, scaleRangeUpdates } from 'uplot-wrappers-common';
 
 export default (defineComponent ? defineComponent : (v) => v)({
     name: 'UplotVue',
@@ -32,6 +32,24 @@ export default (defineComponent ? defineComponent : (v) => v)({
     },
     watch: {
         options(options, prevOptions) {
+            // When the only change is the min/max of one or more scales, apply
+            // it live with `setScale` rather than tearing down the chart.
+            const scaleChanges = this._chart ? scaleRangeUpdates(prevOptions, options) : null;
+            if (this._chart && scaleChanges) {
+                if (prevOptions.width !== options.width || prevOptions.height !== options.height) {
+                    this._chart.setSize({ width: options.width, height: options.height });
+                }
+                // Batch the scale updates so the chart redraws once, regardless
+                // of how many scales changed.
+                if (scaleChanges.length) {
+                    this._chart.batch(() => {
+                        for (const { key, min, max } of scaleChanges) {
+                            this._chart.setScale(key, { min, max });
+                        }
+                    });
+                }
+                return;
+            }
             const optionsState = optionsUpdateState(prevOptions, options);
             if (!this._chart || optionsState === 'create') {
                 this._destroy();
