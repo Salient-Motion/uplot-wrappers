@@ -21,7 +21,7 @@ export default function UplotReact({
     onCreate?: (chart: uPlot) => void;
     resetScales?: boolean;
     className?: string;
-}): JSX.Element | null {
+}): React.JSX.Element | null {
     const chartRef = useRef<uPlot | null>(null);
     const targetRef = useRef<HTMLDivElement>(null);
     const propOptionsRef = useRef(options);

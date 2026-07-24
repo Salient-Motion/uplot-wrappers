@@ -96,6 +96,8 @@ export const dataMatch = (lhs: uPlot.AlignedData, rhs: uPlot.AlignedData): boole
         if (lhsOneSeries.length !== rhsOneSeries.length) {
             return false;
         }
-        return lhsOneSeries.every((value: number, valueIdx: number) => value === rhsOneSeries[valueIdx]);
+        // Cast to number[] so `.every` has a single call signature: a series may
+        // be a plain array or a typed array, whose `.every` overloads don't unify.
+        return (lhsOneSeries as number[]).every((value, valueIdx) => value === rhsOneSeries[valueIdx]);
     });
 }
