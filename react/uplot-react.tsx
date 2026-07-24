@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef } from 'react';
 
 import uPlot from 'uplot';
 
-import { optionsUpdateState, dataMatch } from 'uplot-wrappers-common';
+import { optionsUpdateState, dataMatch, scaleRangeUpdates } from 'uplot-wrappers-common';
 
 export default function UplotReact({
     options,
@@ -61,8 +61,31 @@ export default function UplotReact({
 
     useEffect(() => {
         if (propOptionsRef.current !== options) {
-            const optionsState = optionsUpdateState(propOptionsRef.current, options);
+            const prevOptions = propOptionsRef.current;
             propOptionsRef.current = options;
+            // When the only change is the min/max of one or more scales, apply
+            // it live with `setScale` rather than tearing down the chart.
+            const chart = chartRef.current;
+            const scaleChanges = chart ? scaleRangeUpdates(prevOptions, options) : null;
+            if (chart && scaleChanges) {
+                if (prevOptions.width !== options.width || prevOptions.height !== options.height) {
+                    chart.setSize({
+                        width: options.width,
+                        height: options.height,
+                    });
+                }
+                // Batch the scale updates so the chart redraws once, regardless
+                // of how many scales changed.
+                if (scaleChanges.length) {
+                    chart.batch(() => {
+                        for (const { key, min, max } of scaleChanges) {
+                            chart.setScale(key, { min, max });
+                        }
+                    });
+                }
+                return;
+            }
+            const optionsState = optionsUpdateState(prevOptions, options);
             if (!chartRef.current || optionsState === 'create') {
                 destroy(chartRef.current);
                 create();

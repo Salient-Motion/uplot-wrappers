@@ -90,6 +90,22 @@ const Chart = () => (
 );
 ```
 
+### Updating scale ranges
+
+When the only change in the `options` prop is the `min`/`max` of one or more scales, the wrapper updates the existing chart in place via uPlot's [`setScale`](https://github.com/leeoniya/uPlot/tree/master/docs) instead of recreating it. This makes programmatic zoom/pan cheap and preserves chart state. When several scales change at once the updates are wrapped in uPlot's `batch`, so the chart redraws only once. Remember to replace the `options` object (rather than mutating it) so React detects the change:
+
+```javascript
+const zoom = (min, max) =>
+    setOptions((prev) => ({
+        ...prev,
+        scales: { ...prev.scales, x: { ...prev.scales.x, min, max } },
+    }));
+```
+
+Both `min` and `max` must be numbers for the live update to apply. Any other change to the scales (or a `min`/`max` reset back to auto-ranging) falls back to the regular update/recreate handling.
+
+This behaviour is common to all three wrappers; the Vue and Svelte sections below show how to trigger it in those frameworks.
+
 ## Demo
 
 See the [live demo](https://codesandbox.io/s/uplot-react-6ykeb?file=/react/uplot-react-example.tsx 'live demo')
@@ -171,6 +187,8 @@ import 'uplot/dist/uPlot.min.css';
 
 > Note: Property changes by mutation are not supported due to [Vue limitation](https://github.com/vuejs/vue/issues/2164) You have to create a copy of the property, i.e. replace it instead, see an [example](https://github.com/skalinichev/uplot-wrappers/blob/master/vue/uplot-vue-example.tsx#L52) for the general idea.
 
+> Note: As described in [Updating scale ranges](#updating-scale-ranges), replacing `options` with a copy whose only difference is one or more scales' `min`/`max` updates the chart in place via `setScale` instead of recreating it.
+
 ## Demo
 
 See the [Vue.js 2 live demo](https://codesandbox.io/s/uplot-vue-khi4m?file=/vue/uplot-vue-example.tsx 'Vue.js 2 live demo')
@@ -213,6 +231,8 @@ You also need Svelte to be installed inside your project tree. UplotSvelte compo
 
 <UplotSvelte {options} {data} onCreate={onCreate} onDelete={onDelete} />
 ```
+
+> Note: As described in [Updating scale ranges](#updating-scale-ranges), assigning a new `options` object whose only difference is one or more scales' `min`/`max` updates the chart in place via `setScale` instead of recreating it.
 
 ## Demo
 
